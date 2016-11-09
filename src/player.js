@@ -19,12 +19,15 @@ module.exports = exports = Player;
  * Creates a player
  * @param {BulletPool} bullets the bullet pool
  */
-function Player(bullets, missiles) {
+function Player(position, bullets, missiles) {
   this.missiles = missiles;
   this.missileCount = 4;
   this.bullets = bullets;
   this.angle = 0;
-  this.position = {x: 200, y: 200};
+  this.width = 23;
+  this.height = 27;
+  this.health = 100;
+  this.position = position;
   this.velocity = {x: 0, y: 0};
   this.img = new Image()
   this.img.src = 'assets/tyrian.shp.007D3C.png';
@@ -59,7 +62,7 @@ Player.prototype.update = function(elapsedTime, input) {
   // don't let the player move off-screen
   if(this.position.x < 0) this.position.x = 0;
   if(this.position.x > 1024) this.position.x = 1024;
-  if(this.position.y > 786) this.position.y = 786;
+  if(this.position.y > 786) this.position.y = 786; 
 }
 
 /**
@@ -72,7 +75,7 @@ Player.prototype.render = function(elapasedTime, ctx) {
   var offset = this.angle * 23;
   ctx.save();
   ctx.translate(this.position.x, this.position.y);
-  ctx.drawImage(this.img, 48+offset, 57, 23, 27, -12.5, -12, 23, 27);
+  ctx.drawImage(this.img, 48+offset, 57, 23, 27, -12.5, -12, this.width, this.height);
   ctx.restore();
 }
 

@@ -7,185 +7,273 @@ const Vector = require('./vector');
 const Camera = require('./camera');
 const Player = require('./player');
 const BulletPool = require('./bullet_pool');
-
+const Missile = require('./missile');
+const Powerup = require('./powerups');
+const EntityManager = require('./entity-manager');
 
 /* Global variables */
 var canvas = document.getElementById('screen');
 var game = new Game(canvas, update, render);
 var input = {
-  up: false,
-  down: false,
-  left: false,
-  right: false
+	up: false,
+	down: false,
+	left: false,
+	right: false
 }
 var camera = new Camera(canvas);
+
+var map = new Image();
+map.src = 'assets/cobble.png';
+
+var rocks = new Image();
+rocks.src = 'assets/new_rocks.png';
+
+var bits = new Image();
+bits.src = 'assets/bits.png';
+
+var entities = new EntityManager(canvas.width, canvas.height * 4, 128);
+var powerupsToRemove = [];
 var bullets = new BulletPool(10);
 var missiles = [];
-var player = new Player(bullets, missiles);
+var powerups = [];
+var powertypes = ['red', 'red', 'blue', 'blue', 'green'];
+for(var i = 0; i < 5; i++) {
+	var newp = new Powerup({x: Math.random() * 5 * 180, y: 500 + i * -700}, powertypes[i]);
+	entities.addEntity(newp);
+	powerups.push(newp);
+}
+var level = 1;
+var player = new Player({x: 500, y: 500}, bullets, missiles);
+entities.addEntity(player);
+var missile_level = 1;
 
-/**
- * @function onkeydown
- * Handles keydown events
- */
+	/**
+	 * @function onkeydown
+	 * Handles keydown events
+	 */
 window.onkeydown = function(event) {
-  switch(event.key) {
-    case "ArrowUp":
-    case "w":
-      input.up = true;
-      event.preventDefault();
-      break;
-    case "ArrowDown":
-    case "s":
-      input.down = true;
-      event.preventDefault();
-      break;
-    case "ArrowLeft":
-    case "a":
-      input.left = true;
-      event.preventDefault();
-      break;
-    case "ArrowRight":
-    case "d":
-      input.right = true;
-      event.preventDefault();
-      break;
-  }
+	switch(event.key) {
+		case "ArrowUp":
+		case "w":
+			input.up = true;
+			event.preventDefault();
+			break;
+		case "ArrowDown":
+		case "s":
+			input.down = true;
+			event.preventDefault();
+			break;
+		case "ArrowLeft":
+		case "a":
+			input.left = true;
+			event.preventDefault();
+			break;
+		case "ArrowRight":
+		case "d":
+			input.right = true;
+			event.preventDefault();
+			break;
+		case " ":
+			var new_missile = new Missile(player.position, missile_level);
+			missiles.push(new_missile);
+			entities.addEntity(new_missile);
+			break;
+	}
 }
 
-/**
- * @function onkeyup
- * Handles keydown events
- */
+	/**
+	 * @function onkeyup
+	 * Handles keydown events
+	 */
 window.onkeyup = function(event) {
-  switch(event.key) {
-    case "ArrowUp":
-    case "w":
-      input.up = false;
-      event.preventDefault();
-      break;
-    case "ArrowDown":
-    case "s":
-      input.down = false;
-      event.preventDefault();
-      break;
-    case "ArrowLeft":
-    case "a":
-      input.left = false;
-      event.preventDefault();
-      break;
-    case "ArrowRight":
-    case "d":
-      input.right = false;
-      event.preventDefault();
-      break;
-  }
+	switch(event.key) {
+		case "ArrowUp":
+		case "w":
+			input.up = false;
+			event.preventDefault();
+			break;
+		case "ArrowDown":
+		case "s":
+			input.down = false;
+			event.preventDefault();
+			break;
+		case "ArrowLeft":
+		case "a":
+			input.left = false;
+			event.preventDefault();
+			break;
+		case "ArrowRight":
+		case "d":
+			input.right = false;
+			event.preventDefault();
+			break;
+	}
 }
 
-/**
- * @function masterLoop
- * Advances the game in sync with the refresh rate of the screen
- * @param {DOMHighResTimeStamp} timestamp the current time
- */
+	/**
+	 * @function masterLoop
+	 * Advances the game in sync with the refresh rate of the screen
+	 * @param {DOMHighResTimeStamp} timestamp the current time
+	 */
 var masterLoop = function(timestamp) {
-  game.loop(timestamp);
-  window.requestAnimationFrame(masterLoop);
+	game.loop(timestamp);
+	window.requestAnimationFrame(masterLoop);
 }
 masterLoop(performance.now());
 
-/**
- * @function update
- * Updates the game state, moving
- * game objects and handling interactions
- * between them.
- * @param {DOMHighResTimeStamp} elapsedTime indicates
- * the number of milliseconds passed since the last frame.
- */
+	/**
+	 * @function update
+	 * Updates the game state, moving
+	 * game objects and handling interactions
+	 * between them.
+	 * @param {DOMHighResTimeStamp} elapsedTime indicates
+	 * the number of milliseconds passed since the last frame.
+	 */
 function update(elapsedTime) {
 
-  // update the player
-  player.update(elapsedTime, input);
+	// update the player
+	player.update(elapsedTime, input);	
+	if(player.position.y < -3400) {
+		level += 1;
+		player.position.y = 500;
+	}
+	entities.updateEntity(player);
 
-  // update the camera
-  camera.update(player.position);
+	// update the camera
+	camera.update(player.position);
 
-  // Update bullets
-  bullets.update(elapsedTime, function(bullet){
-    if(!camera.onScreen(bullet)) return true;
-    return false;
-  });
+	// Update bullets
+	bullets.update(elapsedTime, function(bullet){
+		if(!camera.onScreen(bullet)) return true;
+		return false;
+	});
 
-  // Update missiles
-  var markedForRemoval = [];
-  missiles.forEach(function(missile, i){
-    missile.update(elapsedTime);
-    if(Math.abs(missile.position.x - camera.x) > camera.width * 2)
-      markedForRemoval.unshift(i);
-  });
-  // Remove missiles that have gone off-screen
-  markedForRemoval.forEach(function(index){
-    missiles.splice(index, 1);
-  });
+	// Update missiles
+	var markedForRemoval = [];
+	missiles.forEach(function(missile, i){
+		missile.update(elapsedTime);
+		if(Math.abs(missile.position.x - camera.x) > camera.width * 2) {
+			entities.removeEntity(missile);
+			markedForRemoval.unshift(i);
+		}
+	});
+	// Remove missiles that have gone off-screen
+	markedForRemoval.forEach(function(index){
+		missiles.splice(index, 1);
+	});
+
+	entities.collide(function(entity1, entity2) {
+		if(entity1 instanceof Player &&
+			entity2 instanceof Powerup) { 
+				switch(entity2.type) {
+					case 'red':
+						missile_level = 2;
+						break;
+					case 'blue':
+						missile_level = 3;
+						break;
+					case 'green':
+						missile_level = 1;
+						break;
+				}
+				entities.removeEntity(entity2);
+				powerups.splice(powerups.indexOf(entity2), 1);
+			}
+	});
 }
 
-/**
-  * @function render
-  * Renders the current game state into a back buffer.
-  * @param {DOMHighResTimeStamp} elapsedTime indicates
-  * the number of milliseconds passed since the last frame.
-  * @param {CanvasRenderingContext2D} ctx the context to render to
-  */
+	/**
+	 * @function render
+	 * Renders the current game state into a back buffer.
+	 * @param {DOMHighResTimeStamp} elapsedTime indicates
+	 * the number of milliseconds passed since the last frame.
+	 * @param {CanvasRenderingContext2D} ctx the context to render to
+	 */
 function render(elapsedTime, ctx) {
-  ctx.fillStyle = "black";
-  ctx.fillRect(0, 0, 1024, 786);
+	ctx.fillStyle = "black";
+	ctx.fillRect(0, 0, 1024, 786);
 
-  // TODO: Render background
+	// TODO: Render background
 
-  // Transform the coordinate system using
-  // the camera position BEFORE rendering
-  // objects in the world - that way they
-  // can be rendered in WORLD cooridnates
-  // but appear in SCREEN coordinates
-  ctx.save();
-  ctx.translate(-camera.x, -camera.y);
-  renderWorld(elapsedTime, ctx);
-  ctx.restore();
+	ctx.save();
+	ctx.translate(0, -camera.y * 0.6);
+	ctx.drawImage(
+		map,
+		0, 0, 640, 1600,
+		0, -3 * canvas.height, canvas.width, 4 * canvas.height);
+	ctx.restore();
 
-  // Render the GUI without transforming the
-  // coordinate system
-  renderGUI(elapsedTime, ctx);
+	ctx.save();
+	ctx.translate(0, -camera.y * 0.8);
+	ctx.drawImage(
+		bits,
+		0, 0, 640, 1600,
+		0, -3 * canvas.height, canvas.width, 4 * canvas.height);
+	ctx.restore();
+
+	ctx.save();
+	ctx.translate(0, -camera.y);
+	ctx.drawImage(
+		rocks,
+		0, 0, 640, 1600,
+		0, -3 * canvas.height, canvas.width, 4 * canvas.height);
+	ctx.restore();
+
+
+	// Transform the coordinate system using
+	// the camera position BEFORE rendering
+	// objects in the world - that way they
+	// can be rendered in WORLD cooridnates
+	// but appear in SCREEN coordinates
+	ctx.save();
+	ctx.translate(-camera.x, -camera.y);
+	renderWorld(elapsedTime, ctx);
+	ctx.restore();
+	// Render the GUI without transforming the
+	// coordinate system
+	renderGUI(elapsedTime, ctx);
 }
 
-/**
-  * @function renderWorld
-  * Renders the entities in the game world
-  * IN WORLD COORDINATES
-  * @param {DOMHighResTimeStamp} elapsedTime
-  * @param {CanvasRenderingContext2D} ctx the context to render to
-  */
+	/**
+	 * @function renderWorld
+	 * Renders the entities in the game world
+	 * IN WORLD COORDINATES
+	 * @param {DOMHighResTimeStamp} elapsedTime
+	 * @param {CanvasRenderingContext2D} ctx the context to render to
+	 */
 function renderWorld(elapsedTime, ctx) {
-    // Render the bullets
-    bullets.render(elapsedTime, ctx);
+	// Render the bullets	
+	bullets.render(elapsedTime, ctx);
 
-    // Render the missiles
-    missiles.forEach(function(missile) {
-      missile.render(elapsedTime, ctx);
-    });
+	powerups.forEach(function(powerup) {
+		powerup.render(elapsedTime, ctx);
+	});
 
-    // Render the player
-    player.render(elapsedTime, ctx);
+	// Render the missiles	
+	missiles.forEach(function(missile) {
+		missile.render(elapsedTime, ctx);
+	});
+
+	// Render the player
+	player.render(elapsedTime, ctx);
 }
 
-/**
-  * @function renderGUI
-  * Renders the game's GUI IN SCREEN COORDINATES
-  * @param {DOMHighResTimeStamp} elapsedTime
-  * @param {CanvasRenderingContext2D} ctx
-  */
+	/**
+	 * @function renderGUI
+	 * Renders the game's GUI IN SCREEN COORDINATES
+	 * @param {DOMHighResTimeStamp} elapsedTime
+	 * @param {CanvasRenderingContext2D} ctx
+	 */
 function renderGUI(elapsedTime, ctx) {
-  // TODO: Render the GUI
+	ctx.fillStyle = "black";
+	ctx.fillRect(0, 0, canvas.width, 60);
+	ctx.fillStyle = "white";
+	ctx.font = "20px Arial";
+	ctx.fillText("Level: " + level, 10, 40);
+	ctx.fillText("Health: " + player.health, 150, 40);
 }
 
-},{"./bullet_pool":2,"./camera":3,"./game":4,"./player":6,"./vector":8}],2:[function(require,module,exports){
+},{"./bullet_pool":2,"./camera":3,"./entity-manager":4,"./game":5,"./missile":6,"./player":7,"./powerups":8,"./vector":10}],2:[function(require,module,exports){
 "use strict";
 
 /**
@@ -315,6 +403,7 @@ function Camera(screen) {
  */
 Camera.prototype.update = function(target) {
   // TODO: Align camera with player
+  this.y = target.y - 500;
 }
 
 /**
@@ -352,7 +441,109 @@ Camera.prototype.toWorldCoordinates = function(screenCoordinates) {
   return Vector.add(screenCoordinates, this);
 }
 
-},{"./vector":8}],4:[function(require,module,exports){
+},{"./vector":10}],4:[function(require,module,exports){
+module.exports = exports = EntityManager;
+
+function EntityManager(width, height, cellSize) {
+  this.cellSize = cellSize;
+  this.widthInCells = Math.ceil(width / cellSize);
+  this.heightInCells = Math.ceil(height / cellSize);
+  this.cells = [];
+  this.numberOfCells = this.widthInCells * this.heightInCells;
+  for(var i = 0; i < this.numberOfCells; i++) {
+    this.cells[i] = [];
+  }
+  this.cells[-1] = [];
+}
+
+function getIndex(x, y) {
+  var x = Math.floor(x / this.cellSize);
+  var y = Math.floor(y / this.cellSize);
+  if(x < 0 ||
+     x >= this.widthInCells ||
+     y < 0 ||
+     y >= this.heightInCells
+  ) return -1;
+  return y * this.widthInCells + x;
+}
+
+EntityManager.prototype.addEntity = function(entity){
+  var index = getIndex.call(this, entity.position.x, entity.position.y);
+  this.cells[index].push(entity);
+  entity._cell = index;
+}
+
+EntityManager.prototype.updateEntity = function(entity){
+  var index = getIndex.call(this, entity.position.x, entity.position.y);
+  // If we moved to a new cell, remove from old and add to new
+  if(index != entity._cell) {
+    var cellIndex = this.cells[entity._cell].indexOf(entity);
+    if(cellIndex != -1) this.cells[entity._cell].splice(cellIndex, 1);
+    this.cells[index].push(entity);
+    entity._cell = index;
+  }
+}
+
+EntityManager.prototype.removeEntity = function(entity) {
+  var cellIndex = this.cells[entity._cell].indexOf(entity);
+  if(cellIndex != -1) this.cells[entity._cell].splice(cellIndex, 1);
+  entity._cell = undefined;
+}
+
+EntityManager.prototype.collide = function(callback) {
+  var self = this;
+  this.cells.forEach(function(cell, i) {
+    // test for collisions
+    cell.forEach(function(entity1) {
+      // check for collisions with cellmates
+      cell.forEach(function(entity2) {
+        if(entity1 != entity2) checkForCollision(entity1, entity2, callback);
+
+        // check for collisions in cell to the right
+        if(i % (self.widthInCells - 1) != 0) {
+          self.cells[i+1].forEach(function(entity2) {
+            checkForCollision(entity1, entity2, callback);
+          });
+        }
+
+        // check for collisions in cell below
+        if(i < self.numberOfCells - self.widthInCells) {
+          self.cells[i+self.widthInCells].forEach(function(entity2){
+            checkForCollision(entity1, entity2, callback);
+          });
+        }
+
+        // check for collisions diagionally below and right
+        if(i < self.numberOfCells - self.withInCells && i % (self.widthInCells - 1) != 0) {
+          self.cells[i+self.widthInCells + 1].forEach(function(entity2){
+            checkForCollision(entity1, entity2, callback);
+          });
+        }
+      });
+    });
+  });
+}
+
+function checkForCollision(entity1, entity2, callback) {
+  var collides = !(entity1.position.x + entity1.width < entity2.position.x ||
+                   entity1.position.x > entity2.position.x + entity2.width ||
+                   entity1.position.y + entity1.height < entity2.position.y ||
+                   entity1.position.y > entity2.position.y + entity2.height);
+  if(collides) {
+    callback(entity1, entity2);
+  }
+}
+
+EntityManager.prototype.renderCells = function(ctx) {
+  for(var x = 0; x < this.widthInCells; x++) {
+    for(var y = 0; y < this.heightInCells; y++) {
+      ctx.strokeStyle = '#333333';
+      ctx.strokeRect(x * this.cellSize, y * this.cellSize, this.cellSize, this.cellSize);
+    }
+  }
+}
+
+},{}],5:[function(require,module,exports){
 "use strict";
 
 /**
@@ -410,84 +601,58 @@ Game.prototype.loop = function(newTime) {
   this.frontCtx.drawImage(this.backBuffer, 0, 0);
 }
 
-},{}],5:[function(require,module,exports){
+},{}],6:[function(require,module,exports){
 "use strict";
 
-/* Classes and Libraries */
 const Vector = require('./vector');
 const SmokeParticles = require('./smoke_particles');
 
-/* Constants */
-const MISSILE_SPEED = 8;
+const MISSILE_SPEED = -8;
 
-/**
- * @module Missile
- * A class representing a player's missile
- */
 module.exports = exports = Missile;
 
-/**
- * @constructor Missile
- * Creates a missile
- * @param {Vector} position the position of the missile
- * @param {Object} target the target of the missile
- */
-function Missile(position, target) {
-  this.position = {x: position.x, y:position.y}
-  this.target = target;
-  this.angle = 0;
-  this.img = new Image()
-  this.img.src = 'assets/helicopter.png';
-  this.smokeParticles = new SmokeParticles(400);
+function Missile(position, level) {
+	this.position = {x: position.x, y: position.y};
+	this.angle = 0;
+	this.velocity = {x: 0, y: MISSILE_SPEED};
+	this.width = 8;
+	this.height = 16;
+	this.img = new Image();
+	this.img.src = 'assets/newsh1.shp.000000.png';
+	this.level = level;
+	this.smokeParticles = new SmokeParticles(400);
 }
 
-/**
- * @function update
- * Updates the missile, steering it towards a locked
- * target or straight ahead
- * @param {DOMHighResTimeStamp} elapedTime
- */
-Missile.prototype.update = function(elapsedTime) {
-
-  // set the velocity
-  var velocity = {x: MISSILE_SPEED, y: 0}
-  if(this.target) {
-    var direction = Vector.subtract(this.position, this.target);
-    velocity = Vector.scale(Vector.normalize(direction), MISSILE_SPEED);
-  }
-
-  // determine missile angle
-  this.angle = Math.atan2(velocity.y, velocity.x);
-
-  // move the missile
-  this.position.x += velocity.x;
-  this.position.y += velocity.y;
-
-  // emit smoke
-  this.smokeParticles.emit(this.position);
-
-  // update smoke
-  this.smokeParticles.update(elapsedTime);
+Missile.prototype.update = function(elapsedTime) {	
+	this.position.x += this.velocity.x;
+	this.position.y += this.velocity.y;
+	this.smokeParticles.emit(this.position);
+	this.smokeParticles.update(elapsedTime);
 }
 
-/**
- * @function render
- * Renders the missile in world coordinates
- * @param {DOMHighResTimeStamp} elapsedTime
- * @param {CanvasRenderingContext2D} ctx
- */
 Missile.prototype.render = function(elapsedTime, ctx) {
-  // Draw Missile
-  ctx.save();
-  ctx.translate(this.position.x, this.position.y);
-  ctx.rotate(this.angle);
-  ctx.drawImage(this.img, 76, 56, 16, 8, 0, -4, 16, 8);
-  ctx.restore();
-  // Draw Smoke
-  this.smokeParticles.render(elapsedTime, ctx);
+	var rgba;
+	ctx.save();
+	ctx.translate(this.position.x, this.position.y);
+	switch(this.level) {
+		case 1:
+			ctx.drawImage(this.img, 130, 0, 28, 28, -4, 0, this.width, this.height);
+			rgba = "160, 160, 160";
+			break;
+		case 2:
+			ctx.drawImage(this.img, 153, 0, 28, 28, -4, 0, this.width, this.height);
+			rgba = "254, 163, 163";
+			break;
+		case 3:
+			ctx.drawImage(this.img, 179, 0, 28, 28, -4, 0, this.width, this.height);
+			rgba = "255, 66, 66";
+			break;
+	}
+	ctx.restore();
+	this.smokeParticles.render(elapsedTime, ctx, rgba);
 }
 
-},{"./smoke_particles":7,"./vector":8}],6:[function(require,module,exports){
+},{"./smoke_particles":9,"./vector":10}],7:[function(require,module,exports){
 "use strict";
 
 /* Classes and Libraries */
@@ -509,12 +674,15 @@ module.exports = exports = Player;
  * Creates a player
  * @param {BulletPool} bullets the bullet pool
  */
-function Player(bullets, missiles) {
+function Player(position, bullets, missiles) {
   this.missiles = missiles;
   this.missileCount = 4;
   this.bullets = bullets;
   this.angle = 0;
-  this.position = {x: 200, y: 200};
+  this.width = 23;
+  this.height = 27;
+  this.health = 100;
+  this.position = position;
   this.velocity = {x: 0, y: 0};
   this.img = new Image()
   this.img.src = 'assets/tyrian.shp.007D3C.png';
@@ -549,7 +717,7 @@ Player.prototype.update = function(elapsedTime, input) {
   // don't let the player move off-screen
   if(this.position.x < 0) this.position.x = 0;
   if(this.position.x > 1024) this.position.x = 1024;
-  if(this.position.y > 786) this.position.y = 786;
+  if(this.position.y > 786) this.position.y = 786; 
 }
 
 /**
@@ -562,7 +730,7 @@ Player.prototype.render = function(elapasedTime, ctx) {
   var offset = this.angle * 23;
   ctx.save();
   ctx.translate(this.position.x, this.position.y);
-  ctx.drawImage(this.img, 48+offset, 57, 23, 27, -12.5, -12, 23, 27);
+  ctx.drawImage(this.img, 48+offset, 57, 23, 27, -12.5, -12, this.width, this.height);
   ctx.restore();
 }
 
@@ -591,7 +759,43 @@ Player.prototype.fireMissile = function() {
   }
 }
 
-},{"./missile":5,"./vector":8}],7:[function(require,module,exports){
+},{"./missile":6,"./vector":10}],8:[function(require,module,exports){
+"use strict";
+
+module.exports = exports = Powerup;
+
+function Powerup(position, ty) {
+	this.position = {x: position.x, y: position.y};	
+	this.width = 40;
+	this.height = 40;
+	this.type = ty;
+	this.img = new Image();
+	this.img.src = 'assets/newsh1.shp.000000.png';	
+}
+
+Powerup.prototype.update = function(elapsedTime) {	
+
+}
+
+Powerup.prototype.render = function(elapsedTime, ctx) {	
+	ctx.save();
+	ctx.translate(this.position.x, this.position.y);
+	switch(this.type) {
+		case 'red':
+			ctx.fillStyle = "red";
+			break;
+		case 'blue':
+			ctx.fillStyle = "blue";
+			break;
+		case 'green':
+			ctx.fillStyle = 'green';
+			break;
+	}
+	ctx.fillRect(0, 0, this.width, this.height);
+	ctx.restore();
+}
+
+},{}],9:[function(require,module,exports){
 "use strict";
 
 /**
@@ -664,7 +868,7 @@ SmokeParticles.prototype.update = function(elapsedTime) {
  * @param {DOMHighResTimeStamp} elapsedTime
  * @param {CanvasRenderingContext2D} ctx
  */
-SmokeParticles.prototype.render = function(elapsedTime, ctx) {
+SmokeParticles.prototype.render = function(elapsedTime, ctx, rgba) {
   function renderParticle(i){
     var alpha = 1 - (this.pool[3*i+2] / 1000);
     var radius = 0.1 * this.pool[3*i+2];
@@ -677,7 +881,7 @@ SmokeParticles.prototype.render = function(elapsedTime, ctx) {
       0,
       2*Math.PI
     );
-    ctx.fillStyle = 'rgba(160, 160, 160,' + alpha + ')';
+    ctx.fillStyle = 'rgba(' + rgba + ',' + alpha + ')';
     ctx.fill();
   }
 
@@ -697,7 +901,7 @@ SmokeParticles.prototype.render = function(elapsedTime, ctx) {
   }
 }
 
-},{}],8:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 "use strict";
 
 /**

@@ -70,7 +70,7 @@ SmokeParticles.prototype.update = function(elapsedTime) {
  * @param {DOMHighResTimeStamp} elapsedTime
  * @param {CanvasRenderingContext2D} ctx
  */
-SmokeParticles.prototype.render = function(elapsedTime, ctx) {
+SmokeParticles.prototype.render = function(elapsedTime, ctx, rgba) {
   function renderParticle(i){
     var alpha = 1 - (this.pool[3*i+2] / 1000);
     var radius = 0.1 * this.pool[3*i+2];
@@ -83,7 +83,7 @@ SmokeParticles.prototype.render = function(elapsedTime, ctx) {
       0,
       2*Math.PI
     );
-    ctx.fillStyle = 'rgba(160, 160, 160,' + alpha + ')';
+    ctx.fillStyle = 'rgba(' + rgba + ',' + alpha + ')';
     ctx.fill();
   }
 
